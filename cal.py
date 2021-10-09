@@ -1,6 +1,8 @@
 import inspect
 import requests
 
+ESCAPES = [["\\\\", "\\"], ["\\;", ";"], ["\\,", ","], ["\\n", "\n"], ["\\N", "\n"]]
+
 def parseiCal(data):
 	events = []
 	event = {}
@@ -11,7 +13,10 @@ def parseiCal(data):
 		if line == "":
 			continue
 		elif line.startswith(" "):
-			event[lastKey] += line.strip()
+			value = line.strip()
+			for r in ESCAPES:
+				value = value.replace(r[0], r[1])
+			event[lastKey] += value
 			continue
 
 		line = line.strip()
@@ -26,8 +31,7 @@ def parseiCal(data):
 			assert key != "END"
 			lastKey = key
 
-			replace = [["\\\\", "\\"], ["\\;", ";"], ["\\,", ","], ["\\N", "\n"], ["\\n", "\n"]]
-			for r in replace:
+			for r in ESCAPES:
 				value = value.replace(r[0], r[1])
 			event[key] = value
 
@@ -47,7 +51,10 @@ PRODID:Temp-prod-id""" + "\n"
 		o += "BEGIN:VEVENT" + "\n"
 
 		for key in event:
-			o += key + ":" + event[key] + "\n"
+			value = event[key]
+			for r in ESCAPES:
+				value = value.replace(r[1], r[0])
+			o += key + ":" + value + "\n"
 
 		o += "END:VEVENT" + "\n"
 
