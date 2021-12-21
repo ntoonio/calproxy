@@ -22,6 +22,10 @@ def downloadSource(source):
 
 	response = requests.get(url)
 
+	if response.code != 200:
+		print("Source '" + source["name"]["name"] + "' no longer exists")
+		return
+
 	with open("data/" + h + ".ics", "w") as f:
 		f.write(response.text)
 
