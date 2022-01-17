@@ -4,3 +4,6 @@ venv/*
 
 data/*
 calendars/*
+
+__*__
+!__*__.py

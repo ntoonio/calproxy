@@ -4,7 +4,6 @@ import json
 import time
 import logging
 import threading
-import atexit
 
 import requests
 import schedule
@@ -36,8 +35,6 @@ def start():
 
 	threading.Thread(target=_runJobs, daemon=True).start()
 
-	atexit.register(utils.saveConfig, configs)
-
 	return app
 
 @app.route("/<string:string>")
@@ -50,4 +47,4 @@ def req(string):
 	return events, 200
 
 if __name__ == "__main__":
-	start()
+	start().run(port=5678)

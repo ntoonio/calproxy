@@ -22,7 +22,7 @@ def downloadSource(source):
 
 	response = requests.get(url)
 
-	if response.code != 200:
+	if response.status_code != 200:
 		print("Source '" + source["name"]["name"] + "' no longer exists")
 		return
 
@@ -41,6 +41,9 @@ def setUpConfig(config):
 
 		if "last_update" not in source:
 			source["last_update"] = 0
+
+		if "update" not in source:
+			source["update"] = 1800
 
 		if source["last_update"] + source["update"] < time.time():
 			logging.info("Downloading " + source["id"])

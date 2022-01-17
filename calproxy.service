@@ -1,0 +1,12 @@
+# This file should be copied to /etc/systemd/system/calproxy.service
+
+[Unit]
+Description=gunicorn instance to serve calproxy
+After=network.target
+
+[Service]
+User=www-data
+Group=www-data
+WorkingDirectory={path}
+Environment="PATH={path}/venv/bin"
+ExecStart={path}/venv/bin/gunicorn "wsgi:start()" --bind 127.0.0.1:4998
