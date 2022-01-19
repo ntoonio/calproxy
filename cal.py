@@ -63,10 +63,14 @@ PRODID:Temp-prod-id""" + "\n"
 	return o
 
 def setUpEvaluates(event, func):
+	#print("-----", event, func)
 	selectedArgs = inspect.getargspec(func).args
+	#print("selectedArgs:", selectedArgs)
 
 	keys = {ek.lower().replace("-", "_"): ek for ek in event}
+	#print("keys:", keys)
 
 	args = [event[keys[a]] if a in [k for k in keys] else None for a in selectedArgs]
+	#print("args:", args)
 
 	return args

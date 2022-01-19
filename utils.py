@@ -3,13 +3,14 @@ import importlib.util
 import time
 import logging
 import hashlib
+import json
 
 import requests
 import schedule
 import yaml
 
 import cal
-import web
+import app
 
 logging.basicConfig(level=logging.INFO)
 
@@ -17,52 +18,87 @@ def _md5(s):
 	return hashlib.md5(s.encode()).hexdigest()
 
 def downloadSource(source):
+	logging.info("Downloading " + source["name"])
+
 	url = source["url"]
 	h = _md5(url)
 
 	response = requests.get(url)
 
 	if response.status_code != 200:
-		print("Source '" + source["name"]["name"] + "' no longer exists")
+		print("Source '" + source["name"] + "' no longer exists")
 		return
 
-	with open("data/" + h + ".ics", "w") as f:
+	with open(app.DATA_PATH + h + ".ics", "w") as f:
 		f.write(response.text)
 
-	source["last_update"] = time.time()
+	writeData(h, "last_update", time.time())
+
+def writeData(id, key, value):
+	fileName = app.DATA_PATH + id + ".json"
+
+	with open(fileName) as f:
+		data = json.load(f)
+
+	data[key] = value
+
+	with open(fileName, "w") as f:
+		json.dump(data, f)
+
+def getData(id, key):
+	fileName = app.DATA_PATH + id + ".json"
+
+	with open(fileName) as f:
+		data = json.load(f)
+
+	return data[key]
+
+def assureDataFile(id):
+	# Set up data file
+	fileName = app.DATA_PATH + id + ".json"
+
+	# Create the data file if it does not already exist
+	if not os.path.exists(fileName):
+		with open(fileName, "w+") as f:
+			json.dump({
+				"last_update": 0
+			}, f)
 
 def setUpConfig(config):
-	if "id" not in config:
-		config["id"] = _md5(config["name"])
-
 	for source in config["sources"]:
-		if "id" not in source:
-			source["id"] = _md5(source["url"])
-
-		if "last_update" not in source:
-			source["last_update"] = 0
-
+		# Set up default configuration
 		if "update" not in source:
 			source["update"] = 1800
 
-		if source["last_update"] + source["update"] < time.time():
-			logging.info("Downloading " + source["id"])
+		# Set up automatic configs
+		source["id"] = _md5(source["url"])
 
+		# Create a template data file if it does not exist
+		assureDataFile(source["id"])
+
+		# Refresh the source if it needs to
+		if getData(source["id"], "last_update") + source["update"] < time.time():
 			downloadSource(source)
 
+		# Refresh the source at the update interval
 		schedule.every(source["update"]).seconds.do(downloadSource, source)
+	
+	app.configs[config["code"]] = config
+
+def getFunctionFromString(s):
+	mod, funcName = s.split(":", 1)
+
+	p = os.path.abspath(app.CALENDAR_PATH + mod + ".py")
+
+	spec = importlib.util.spec_from_file_location("calendars." + mod, p)
+	m = importlib.util.module_from_spec(spec)
+	spec.loader.exec_module(m)
+
+	return getattr(m, funcName)
 
 def shouldBeIncluded(event, evaluators):
 	for evaluator in evaluators:
-		mod, func = evaluator.split(":", 1)
-
-		p = os.path.abspath("calendars/" + mod + ".py")
-
-		spec = importlib.util.spec_from_file_location("calendars." + mod, p)
-		m = importlib.util.module_from_spec(spec)
-		spec.loader.exec_module(m)
-
-		evalFunc = getattr(m, func)
+		evalFunc = getFunctionFromString(evaluator)
 
 		args = cal.setUpEvaluates(event, evalFunc)
 
@@ -74,30 +110,26 @@ def shouldBeIncluded(event, evaluators):
 
 	return True
 
-def getEvents(md5, configs, sourceId=None):
-	for calendar in configs:
-		if md5 == calendar[0]["id"]:
-			calendar = calendar[0]
-			allEvents = []
+def applyFilter(f, event):
+	filterFunc = getFunctionFromString(f)
+	return filterFunc(event)
 
-			for source in calendar["sources"]:
-				if sourceId != None and sourceId != source["id"]:
-						continue
+def getEvents(code):
+	config = app.configs[code] if code in app.configs else {}
 
-				with open("data/" + source["id"] + ".ics") as f:
-					events = cal.parseiCal(f.read())
+	if "sources" not in config:
+		return False
 
-				for event in events:
-					if "evaluators" not in source or shouldBeIncluded(event, source["evaluators"]):
-						allEvents.append(event)
-
-			return allEvents
-
-	return False
-
-def saveConfig(configs):
-	for c in configs:
-		output = yaml.dump(c[0], Dumper=yaml.CDumper)
-		with open("calendars/" + c[1], "w") as f:
-			f.write(output)
+	# Loop though all the sources for the calendar config
+	for source in config["sources"]:
+		# Open the calendar file for the coresponing url
+		with open(app.DATA_PATH + _md5(source["url"]) + ".ics") as f:
+			# Loop thorugh the read events in the file, decoded from iCal
+			for event in cal.parseiCal(f.read()):
+				# If there are no evaluators or they conclude it should be included...
+				if "evaluators" not in source or shouldBeIncluded(event, source["evaluators"]):
+					if "filters" in source:
+						for f in source["filters"]:
+							event = applyFilter(f, event)
+					yield event
 

@@ -13,20 +13,27 @@ from flask import Flask
 import cal
 import utils
 
+PATH = os.path.dirname(os.path.abspath(__file__)) + "/"
+CALENDAR_PATH = PATH + "calendars/"
+DATA_PATH = PATH + "data/"
+
+configs = {}
+
 app = Flask(__name__)
 
 def start():
-	global configs
+	if not os.path.exists(CALENDAR_PATH):
+		os.mkdir(CALENDAR_PATH)
 
-	configFiles = [x for x in os.listdir("calendars/") if os.path.isfile("calendars/" + x) and (x.endswith(".yaml") or x.endswith(".yml"))]
+	if not os.path.exists(DATA_PATH):
+		os.mkdir(DATA_PATH)
 
-	configs = []
+	configFiles = [x for x in os.listdir(CALENDAR_PATH) if os.path.isfile(CALENDAR_PATH + x) and (x.endswith(".yaml") or x.endswith(".yml"))]
 
 	for c in configFiles:
-		with open("calendars/" + c) as f:
+		with open(CALENDAR_PATH + c) as f:
 			config = yaml.load(f, Loader=yaml.CLoader)
 			utils.setUpConfig(config)
-			configs.append((config, c))
 
 	def _runJobs():
 		while True:
@@ -37,9 +44,9 @@ def start():
 
 	return app
 
-@app.route("/<string:string>")
-def req(string):
-	events = cal.eventsToiCal(utils.getEvents(string, configs))
+@app.route("/<string:code>")
+def req(code):
+	events = cal.eventsToiCal(utils.getEvents(code))
 
 	if events == False:
 		return "", 404
