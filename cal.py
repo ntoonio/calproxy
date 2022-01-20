@@ -5,14 +5,14 @@ ESCAPES = [["\\\\", "\\"], ["\\;", ";"], ["\\,", ","], ["\\n", "\n"], ["\\N", "\
 
 def parseiCal(data):
 	events = []
-	event = {}
+	event = None
 
 	lastKey = None
 
 	for line in data.split("\n"):
 		if line == "":
 			continue
-		elif line.startswith(" "):
+		elif event != None and line.startswith(" "):
 			value = line.strip()
 			for r in ESCAPES:
 				value = value.replace(r[0], r[1])
@@ -28,7 +28,9 @@ def parseiCal(data):
 			event = None
 		elif event != None:
 			key, value = line.split(":", 1)
+
 			assert key != "END"
+
 			lastKey = key
 
 			for r in ESCAPES:
